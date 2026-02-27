@@ -1,30 +1,35 @@
-# ETAPA 1: Construcción (Builder)
+# ETAPA 1: Construcción
 FROM node:20-slim AS builder
 WORKDIR /app
 
-# Instalamos dependencias
+# Instalamos dependencias (incluyendo las de desarrollo para el build)
 COPY package*.json ./
 RUN npm install
 
-# Copiamos todo el código y construimos la app
+# Copiamos el resto del código
 COPY . .
+
+# Ejecutamos el build (esto generará la carpeta .next/standalone)
 RUN npm run build
 
-# ETAPA 2: Ejecución (Runner)
+# ETAPA 2: Ejecución (Imagen final ultra ligera)
 FROM node:20-slim AS runner
 WORKDIR /app
 
-# Variables de entorno para que Cloud Run no falle
+# Seteamos variables de entorno críticas para Cloud Run
 ENV NODE_ENV=production
 ENV PORT=8080
 ENV HOSTNAME="0.0.0.0"
 
-# Copiamos solo lo necesario desde el builder (Modo Standalone)
+# Copiamos solo lo necesario desde la etapa de construcción
+# El modo standalone de Next.js 15 requiere estos 3 elementos:
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
+# Exponemos el puerto
 EXPOSE 8080
 
-# IMPORTANTE: En Next.js Standalone, el punto de entrada es server.js
+# Comando de ejecución directa (Evitamos npm start para mayor velocidad)
+# Next.js standalone genera su propio server.js
 CMD ["node", "server.js"]
